@@ -1,6 +1,6 @@
 /* ===== 本地数据存储管理 - 升级版 ===== */
 
-const Storage = {
+var Storage = {
     KEYS: {
         GRADE: 'xxgc_grade',
         PROGRESS: 'xxgc_progress',
@@ -15,112 +15,131 @@ const Storage = {
         USER: 'xxgc_user'
     },
 
-    get(key, defaultValue) {
+    get: function(key, defaultValue) {
         try {
-            const data = localStorage.getItem(key);
+            var data = localStorage.getItem(key);
             return data ? JSON.parse(data) : defaultValue;
         } catch (e) { return defaultValue; }
     },
 
-    set(key, value) {
+    set: function(key, value) {
         try { localStorage.setItem(key, JSON.stringify(value)); return true; }
         catch (e) { return false; }
     },
 
-    // ===== 年级管理 =====
-    getGrade() { return this.get(this.KEYS.GRADE, 1); },
-    setGrade(grade) { this.set(this.KEYS.GRADE, grade); },
+    getGrade: function() { return this.get(this.KEYS.GRADE, 1); },
+    setGrade: function(grade) { this.set(this.KEYS.GRADE, grade); },
 
-    // ===== 学习进度 =====
-    getProgress() {
-        const grade = this.getGrade();
-        return this.get(`${this.KEYS.PROGRESS}_${grade}`, { chinese: {}, math: {}, english: {} });
+    getProgress: function() {
+        var grade = this.getGrade();
+        return this.get(this.KEYS.PROGRESS + '_' + grade, { chinese: {}, math: {}, english: {} });
     },
 
-    markLessonComplete(lessonId, subjectId) {
-        const progress = this.getProgress();
+    markLessonComplete: function(lessonId, subjectId) {
+        var progress = this.getProgress();
         if (!progress[subjectId]) progress[subjectId] = {};
         progress[subjectId][lessonId] = true;
-        this.set(`${this.KEYS.PROGRESS}_${this.getGrade()}`, progress);
+        this.set(this.KEYS.PROGRESS + '_' + this.getGrade(), progress);
         this.checkAchievements();
     },
 
-    isLessonComplete(lessonId, subjectId) {
-        const progress = this.getProgress();
+    isLessonComplete: function(lessonId, subjectId) {
+        var progress = this.getProgress();
         return progress[subjectId] && progress[subjectId][lessonId];
     },
 
-    getSubjectProgress(subjectId) {
-        const grade = this.getGrade();
-        const units = window.LEARNING_DATA?.UNITS?.[grade]?.[subjectId];
+    getSubjectProgress: function(subjectId) {
+        var grade = this.getGrade();
+        var units = window.LEARNING_DATA && window.LEARNING_DATA.UNITS && window.LEARNING_DATA.UNITS[grade] && window.LEARNING_DATA.UNITS[grade][subjectId];
         if (!units) return { completed: 0, total: 0 };
-        let completed = 0, total = 0;
-        units.forEach(unit => {
-            unit.lessons.forEach(lesson => {
+        var completed = 0, total = 0;
+        for (var i = 0; i < units.length; i++) {
+            var unit = units[i];
+            for (var j = 0; j < unit.lessons.length; j++) {
                 total++;
-                if (this.isLessonComplete(lesson.id, subjectId)) completed++;
-            });
-        });
-        return { completed, total };
+                if (this.isLessonComplete(unit.lessons[j].id, subjectId)) completed++;
+            }
+        }
+        return { completed: completed, total: total };
     },
 
-    isUnitComplete(unit, subjectId) {
-        return unit.lessons.every(lesson => this.isLessonComplete(lesson.id, subjectId));
+    isUnitComplete: function(unit, subjectId) {
+        for (var i = 0; i < unit.lessons.length; i++) {
+            if (!this.isLessonComplete(unit.lessons[i].id, subjectId)) return false;
+        }
+        return true;
     },
 
-    // ===== 答题记录 =====
-    getAnswerLog() {
+    getAnswerLog: function() {
         return this.get(this.KEYS.ANSWER_LOG, { chinese: [], math: [], english: [] });
     },
 
-    recordAnswer(subjectId, questionId, correct) {
-        const log = this.getAnswerLog();
+    recordAnswer: function(subjectId, questionId, correct) {
+        var log = this.getAnswerLog();
         if (!log[subjectId]) log[subjectId] = [];
-        log[subjectId].push({ questionId, correct, time: Date.now() });
+        log[subjectId].push({ questionId: questionId, correct: correct, time: Date.now() });
         if (log[subjectId].length > 20) log[subjectId] = log[subjectId].slice(-20);
         this.set(this.KEYS.ANSWER_LOG, log);
         this.updateDailyProgress();
     },
 
-    getAccuracy(subjectId) {
-        const log = this.getAnswerLog();
-        const records = log[subjectId] || [];
+    getAccuracy: function(subjectId) {
+        var log = this.getAnswerLog();
+        var records = log[subjectId] || [];
         if (records.length === 0) return { accuracy: 0, total: 0, correct: 0 };
-        const correct = records.filter(r => r.correct).length;
-        return { accuracy: correct / records.length, total: records.length, correct };
+        var correct = 0;
+        for (var i = 0; i < records.length; i++) {
+            if (records[i].correct) correct++;
+        }
+        return { accuracy: correct / records.length, total: records.length, correct: correct };
     },
 
-    // ===== 错题本 =====
-    getWrongQuestions() { return this.get(this.KEYS.WRONG_QUESTIONS, []); },
+    getWrongQuestions: function() { return this.get(this.KEYS.WRONG_QUESTIONS, []); },
 
-    addWrongQuestion(question, subjectId) {
-        const wrong = this.getWrongQuestions();
-        if (!wrong.find(w => w.questionId === question.id)) {
+    addWrongQuestion: function(question, subjectId) {
+        var wrong = this.getWrongQuestions();
+        var found = false;
+        for (var i = 0; i < wrong.length; i++) {
+            if (wrong[i].questionId === question.id) { found = true; break; }
+        }
+        if (!found) {
+            var correctAnswer = question.options && question.answer !== undefined ? question.options[question.answer] : '';
             wrong.push({
-                questionId: question.id, subjectId,
+                questionId: question.id,
+                subjectId: subjectId,
                 content: question.content,
-                correctAnswer: question.options?.[question.answer] || '',
-                hint: question.hint, type: question.type,
-                grade: this.getGrade(), time: Date.now()
+                correctAnswer: correctAnswer,
+                hint: question.hint,
+                type: question.type,
+                grade: this.getGrade(),
+                time: Date.now()
             });
             this.set(this.KEYS.WRONG_QUESTIONS, wrong);
         }
     },
 
-    removeWrongQuestion(questionId) {
-        const wrong = this.getWrongQuestions();
-        this.set(this.KEYS.WRONG_QUESTIONS, wrong.filter(w => w.questionId !== questionId));
+    removeWrongQuestion: function(questionId) {
+        var wrong = this.getWrongQuestions();
+        var newWrong = [];
+        for (var i = 0; i < wrong.length; i++) {
+            if (wrong[i].questionId !== questionId) newWrong.push(wrong[i]);
+        }
+        this.set(this.KEYS.WRONG_QUESTIONS, newWrong);
     },
 
-    getWrongBySubject(subjectId) {
-        const wrong = this.getWrongQuestions();
-        return wrong.filter(w => w.subjectId === subjectId && w.grade === this.getGrade());
+    getWrongBySubject: function(subjectId) {
+        var wrong = this.getWrongQuestions();
+        var result = [];
+        var grade = this.getGrade();
+        for (var i = 0; i < wrong.length; i++) {
+            if (wrong[i].subjectId === subjectId && wrong[i].grade === grade) result.push(wrong[i]);
+        }
+        return result;
     },
 
-    // ===== 每日任务 =====
-    getDailyTasks() {
-        const today = new Date().toDateString();
-        return this.get(`${this.KEYS.DAILY_TASKS}_${today}`, {
+    getDailyTasks: function() {
+        var today = new Date().toDateString();
+        return this.get(this.KEYS.DAILY_TASKS + '_' + today, {
             math: { completed: 0, target: 5 },
             chinese: { completed: 0, target: 5 },
             english: { completed: 0, target: 3 },
@@ -129,24 +148,23 @@ const Storage = {
         });
     },
 
-    updateDailyProgress() {
-        const tasks = this.getDailyTasks();
-        const today = new Date().toDateString();
-        this.set(`${this.KEYS.DAILY_TASKS}_${today}`, tasks);
+    updateDailyProgress: function() {
+        var tasks = this.getDailyTasks();
+        var today = new Date().toDateString();
+        this.set(this.KEYS.DAILY_TASKS + '_' + today, tasks);
     },
 
-    isDailyComplete() {
-        const tasks = this.getDailyTasks();
+    isDailyComplete: function() {
+        var tasks = this.getDailyTasks();
         return tasks.math.completed >= tasks.math.target &&
                tasks.chinese.completed >= tasks.chinese.target &&
                tasks.english.completed >= tasks.english.target;
     },
 
-    // ===== 连续学习天数 =====
-    getStreak() {
-        const streak = this.get(this.KEYS.STREAK, { count: 0, lastDate: '' });
-        const today = new Date().toDateString();
-        const yesterday = new Date(Date.now() - 86400000).toDateString();
+    getStreak: function() {
+        var streak = this.get(this.KEYS.STREAK, { count: 0, lastDate: '' });
+        var today = new Date().toDateString();
+        var yesterday = new Date(Date.now() - 86400000).toDateString();
 
         if (streak.lastDate === today) return streak.count;
         if (streak.lastDate === yesterday && this.isDailyComplete()) {
@@ -164,8 +182,7 @@ const Storage = {
         return 0;
     },
 
-    // ===== 成就系统 =====
-    getAchievements() {
+    getAchievements: function() {
         return this.get(this.KEYS.ACHIEVEMENTS, {
             firstLesson: false, first10: false, first50: false,
             streak3: false, streak7: false, streak30: false,
@@ -174,15 +191,21 @@ const Storage = {
         });
     },
 
-    checkAchievements() {
-        const achievements = this.getAchievements();
-        const newAchievements = [];
-        const grade = this.getGrade();
+    checkAchievements: function() {
+        var achievements = this.getAchievements();
+        var newAchievements = [];
+        var grade = this.getGrade();
+        var self = this;
 
-        // 检查各科进度成就
-        Object.keys(window.LEARNING_DATA?.SUBJECTS || {}).forEach(subjectId => {
-            const { completed, total } = this.getSubjectProgress(subjectId);
-            const { accuracy } = this.getAccuracy(subjectId);
+        var subjects = window.LEARNING_DATA && window.LEARNING_DATA.SUBJECTS ? Object.keys(window.LEARNING_DATA.SUBJECTS) : [];
+        for (var i = 0; i < subjects.length; i++) {
+            var subjectId = subjects[i];
+            var progress = this.getSubjectProgress(subjectId);
+            var acc = this.getAccuracy(subjectId);
+            var completed = progress.completed;
+            var total = progress.total;
+            var accuracy = acc.accuracy;
+            var totalQuestions = acc.total;
 
             if (completed >= 1 && !achievements.firstLesson) {
                 achievements.firstLesson = true;
@@ -197,17 +220,17 @@ const Storage = {
                 newAchievements.push({ id: 'first50', title: '学霸', desc: '完成50课！' });
             }
 
-            if (accuracy >= 0.9 && total >= 10) {
-                const key = `perfect${subjectId.charAt(0).toUpperCase() + subjectId.slice(1)}`;
+            if (accuracy >= 0.9 && totalQuestions >= 10) {
+                var key = 'perfect' + subjectId.charAt(0).toUpperCase() + subjectId.slice(1);
                 if (!achievements[key]) {
+                    var subjectName = window.LEARNING_DATA && window.LEARNING_DATA.SUBJECTS && window.LEARNING_DATA.SUBJECTS[subjectId] ? window.LEARNING_DATA.SUBJECTS[subjectId].name : '';
                     achievements[key] = true;
-                    newAchievements.push({ id: key, title: `${window.LEARNING_DATA?.SUBJECTS?.[subjectId]?.name}之星`, desc: `${window.LEARNING_DATA?.SUBJECTS?.[subjectId]?.name}正确率超90%！` });
+                    newAchievements.push({ id: key, title: subjectName + '之星', desc: subjectName + '正确率超90%！' });
                 }
             }
-        });
+        }
 
-        // 连续学习成就
-        const streak = this.getStreak();
+        var streak = this.getStreak();
         if (streak >= 3 && !achievements.streak3) {
             achievements.streak3 = true;
             newAchievements.push({ id: 'streak3', title: '坚持者', desc: '连续学习3天！' });
@@ -225,64 +248,96 @@ const Storage = {
         return newAchievements;
     },
 
-    // ===== 挑战记录 =====
-    recordChallenge(challengeId) {
-        const history = this.get(this.KEYS.CHALLENGE_HISTORY, []);
-        history.push({ challengeId, time: Date.now() });
+    recordChallenge: function(challengeId) {
+        var history = this.get(this.KEYS.CHALLENGE_HISTORY, []);
+        history.push({ challengeId: challengeId, time: Date.now() });
         this.set(this.KEYS.CHALLENGE_HISTORY, history);
-        const tasks = this.getDailyTasks();
+        var tasks = this.getDailyTasks();
         tasks.challenges.completed++;
         this.updateDailyProgress();
     },
 
-    // ===== 智能推练 =====
-    getLowestSubject() {
-        const subjects = ['chinese', 'math', 'english'];
-        let lowestSubject = null, lowestAccuracy = 1.01, hasData = false;
+    getLowestSubject: function() {
+        var subjects = ['chinese', 'math', 'english'];
+        var lowestSubject = null, lowestAccuracy = 1.01, hasData = false;
 
-        subjects.forEach(subjectId => {
-            const { accuracy, total } = this.getAccuracy(subjectId);
+        for (var i = 0; i < subjects.length; i++) {
+            var subjectId = subjects[i];
+            var result = this.getAccuracy(subjectId);
+            var accuracy = result.accuracy;
+            var total = result.total;
             if (total > 0) {
                 hasData = true;
                 if (accuracy < lowestAccuracy) { lowestAccuracy = accuracy; lowestSubject = subjectId; }
             }
-        });
+        }
 
         if (!hasData) return { subjectId: 'chinese', accuracy: 0, hasData: false };
         return { subjectId: lowestSubject, accuracy: lowestAccuracy, hasData: true };
     },
 
-    getQuestionsForPractice(subjectId, count) {
-        const grade = this.getGrade();
-        const units = window.LEARNING_DATA?.UNITS?.[grade]?.[subjectId];
+    getQuestionsForPractice: function(subjectId, count) {
+        var grade = this.getGrade();
+        var units = window.LEARNING_DATA && window.LEARNING_DATA.UNITS && window.LEARNING_DATA.UNITS[grade] && window.LEARNING_DATA.UNITS[grade][subjectId];
         if (!units) return [];
-        const allQuestions = [];
-        units.forEach(unit => {
-            unit.lessons.forEach(lesson => {
-                lesson.questions.forEach(q => allQuestions.push({ ...q, subjectId }));
-            });
-        });
+        var allQuestions = [];
+        for (var i = 0; i < units.length; i++) {
+            var unit = units[i];
+            for (var j = 0; j < unit.lessons.length; j++) {
+                var lesson = unit.lessons[j];
+                if (lesson.questions) {
+                    for (var k = 0; k < lesson.questions.length; k++) {
+                        var q = lesson.questions[k];
+                        allQuestions.push({
+                            id: q.id,
+                            type: q.type,
+                            content: q.content,
+                            options: q.options,
+                            answer: q.answer,
+                            hint: q.hint,
+                            subjectId: subjectId
+                        });
+                    }
+                }
+            }
+        }
 
-        const wrongQuestions = this.getWrongBySubject(subjectId);
-        const wrongIds = wrongQuestions.map(w => w.questionId);
-        const wrongPool = allQuestions.filter(q => wrongIds.includes(q.id));
-        const otherPool = allQuestions.filter(q => !wrongIds.includes(q.id));
-        const shuffle = arr => arr.sort(() => Math.random() - 0.5);
+        var wrongQuestions = this.getWrongBySubject(subjectId);
+        var wrongIds = [];
+        for (var w = 0; w < wrongQuestions.length; w++) {
+            wrongIds.push(wrongQuestions[w].questionId);
+        }
 
-        const selected = shuffle(wrongPool).slice(0, count);
-        const need = count - selected.length;
-        if (need > 0) selected.push(...shuffle(otherPool).slice(0, need));
+        var wrongPool = [];
+        var otherPool = [];
+        for (var q = 0; q < allQuestions.length; q++) {
+            if (wrongIds.indexOf(allQuestions[q].id) !== -1) {
+                wrongPool.push(allQuestions[q]);
+            } else {
+                otherPool.push(allQuestions[q]);
+            }
+        }
+
+        var shuffle = function(arr) {
+            return arr.sort(function() { return Math.random() - 0.5; });
+        };
+
+        var selected = shuffle(wrongPool).slice(0, count);
+        var need = count - selected.length;
+        if (need > 0) {
+            var more = shuffle(otherPool).slice(0, need);
+            for (var m = 0; m < more.length; m++) selected.push(more[m]);
+        }
         return selected;
     },
 
-    // ===== 用户信息 =====
-    getUser() {
+    getUser: function() {
         return this.get(this.KEYS.USER, null);
     },
 
-    setUser(name) {
+    setUser: function(name) {
         if (!name || !name.trim()) return false;
-        const user = {
+        var user = {
             name: name.trim(),
             createdAt: Date.now()
         };
@@ -290,11 +345,11 @@ const Storage = {
         return true;
     },
 
-    clearUser() {
+    clearUser: function() {
         localStorage.removeItem(this.KEYS.USER);
     },
 
-    isLoggedIn() {
+    isLoggedIn: function() {
         return this.getUser() !== null;
     }
 };

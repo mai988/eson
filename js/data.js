@@ -1,28 +1,26 @@
 /* ===== 小小工程师 - 学习内容数据整合 ===== */
 
-// 合并各科目数据并按年级组织
 (function() {
-    // 科目基础信息
-    const SUBJECTS = {
+    var SUBJECTS = {
         chinese: { id: 'chinese', name: '语文', emoji: '📖', desc: '识字、拼音、课文', color: 'chinese' },
         math: { id: 'math', name: '数学', emoji: '🔢', desc: '数字、运算、几何', color: 'math' },
         english: { id: 'english', name: '英语', emoji: '🅰️', desc: '字母、单词、句型', color: 'english' }
     };
 
-    // 按年级组织数据
-    const UNITS = {};
+    var UNITS = {};
 
-    // 整合各年级数据
-    for (let grade = 1; grade <= 6; grade++) {
+    for (var grade = 1; grade <= 6; grade++) {
+        var chineseData = window.CHINESE_DATA && window.CHINESE_DATA[grade] ? window.CHINESE_DATA[grade] : [];
+        var mathData = window.MATH_DATA && window.MATH_DATA[grade] ? window.MATH_DATA[grade] : [];
+        var englishData = window.ENGLISH_DATA && window.ENGLISH_DATA[grade] ? window.ENGLISH_DATA[grade] : [];
         UNITS[grade] = {
-            chinese: window.CHINESE_DATA?.[grade] || [],
-            math: window.MATH_DATA?.[grade] || [],
-            english: window.ENGLISH_DATA?.[grade] || []
+            chinese: chineseData,
+            math: mathData,
+            english: englishData
         };
     }
 
-    // 兴趣工坊挑战题库
-    const CHALLENGES = [
+    var CHALLENGES = [
         {
             id: 'ch1',
             title: '纸桥挑战',
@@ -95,8 +93,7 @@
         }
     ];
 
-    // 导出到全局
-    window.LEARNING_DATA = { SUBJECTS, UNITS, CHALLENGES };
+    window.LEARNING_DATA = { SUBJECTS: SUBJECTS, UNITS: UNITS, CHALLENGES: CHALLENGES };
 
     console.log('学习数据加载完成', {
         grades: Object.keys(UNITS).length,

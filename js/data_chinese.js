@@ -2065,7 +2065,7 @@ window.CHINESE_DATA = {
             { id: "q6_5_2_2", type: "truefalse", content: "伯父送了\"我\"两本书，一本是《表》，一本是《小约翰》。", options: ["正确", "错误"], answer: 0, hint: "伯父送我两本书，一本是《表》，一本是《小约翰》！" },
             { id: "q6_5_2_3", type: "choice", content: "伯父说\"四周黑洞洞的，还不容易碰壁吗\"是什么意思？", options: ["走路不小心", "当时社会黑暗，革命者处处受迫害", "鼻子太软", "墙壁太硬"], answer: 1, hint: "这是用比喻的手法说当时社会黑暗！" },
             { id: "q6_5_2_4", type: "choice", content: "伯父和爸爸帮助了谁？", options: ["一个老人", "一个拉黄包车的", "一个小孩", "一个妇女"], answer: 1, hint: "看见一个拉黄包车的坐在地上呻吟！" },
-            { id: "q6_5_2_5", type: "truefalse", content": "鲁迅先生为自己想得少，为别人想得多。", options: ["正确", "错误"], answer: 0, hint: "他为自己想得少，为别人想得多！" }
+            { id: "q6_5_2_5", type: "truefalse", content: "鲁迅先生为自己想得少，为别人想得多。", options: ["正确", "错误"], answer: 0, hint: "他为自己想得少，为别人想得多！" }
           ]
         }
       ]

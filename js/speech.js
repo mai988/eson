@@ -1,5 +1,4 @@
-/* ===== 语音播报模块 - 使用 Web Speech API ===== */
-/* 完全ES5兼容，支持移动端 */
+/* ===== 语音播报模块 - 完全兼容移动端 ===== */
 
 var Speech = {
     enabled: true,
@@ -7,48 +6,59 @@ var Speech = {
     speaking: false,
     voicesLoaded: false,
     defaultVoice: null,
+    initialized: false,
+    debugMode: true,
     
     init: function() {
+        if (this.initialized) return;
+        this.initialized = true;
+        
         if ('speechSynthesis' in window) {
             this.synth = window.speechSynthesis;
             this.enabled = Storage.get('xxgc_speech', true);
             this.updateIcon();
             
-            // 移动端关键：先取消任何正在进行的播报
-            this.synth.cancel();
+            // 关键：初始化时取消所有播报，清空队列
+            try { this.synth.cancel(); } catch(e) {}
             
-            // 预加载语音列表
+            // 立即加载语音列表
             this.loadVoices();
             
-            // 多种方式监听语音加载完成
             var self = this;
             
-            // 方式1：onvoiceschanged 属性
+            // 方式1：onvoiceschanged属性
             if (typeof this.synth.onvoiceschanged !== 'undefined') {
                 this.synth.onvoiceschanged = function() {
+                    self.log('voiceschanged事件触发');
                     self.loadVoices();
                 };
             }
             
-            // 方式2：addEventListener（部分浏览器支持）
+            // 方式2：addEventListener
             if (this.synth.addEventListener) {
                 this.synth.addEventListener('voiceschanged', function() {
+                    self.log('voiceschanged事件(Listener)触发');
                     self.loadVoices();
                 });
             }
             
-            // 方式3：定时轮询（兜底方案，确保移动端能加载）
+            // 方式3：定时轮询（关键修复移动端）
             var pollCount = 0;
             var pollInterval = setInterval(function() {
                 self.loadVoices();
                 pollCount++;
-                if (self.voicesLoaded || pollCount > 10) {
+                if (self.voicesLoaded || pollCount > 20) {
                     clearInterval(pollInterval);
+                    self.log('语音轮询结束，已加载:', self.voicesLoaded);
                 }
             }, 100);
             
+            // 方式4：延迟加载
+            setTimeout(function() { self.loadVoices(); }, 500);
+            setTimeout(function() { self.loadVoices(); }, 1000);
+            
         } else {
-            console.warn('浏览器不支持语音合成');
+            this.log('浏览器不支持语音合成');
             this.enabled = false;
             this.updateIcon();
         }
@@ -56,111 +66,142 @@ var Speech = {
 
     loadVoices: function() {
         try {
-            if (!this.synth) return;
+            if (!this.synth) {
+                this.log('synth为空，跳过加载');
+                return;
+            }
+            
             var voices = this.synth.getVoices();
-            if (voices && voices.length > 0) {
-                this.voicesLoaded = true;
-                // 寻找中文语音
-                for (var i = 0; i < voices.length; i++) {
-                    var v = voices[i];
-                    if (v.lang && (v.lang.indexOf('zh') !== -1 || v.lang.indexOf('CN') !== -1 || v.lang.indexOf('cmn') !== -1)) {
-                        this.defaultVoice = v;
-                        break;
-                    }
-                }
-                // 如果没找到中文语音，使用第一个可用的
-                if (!this.defaultVoice && voices.length > 0) {
-                    this.defaultVoice = voices[0];
+            
+            if (!voices || voices.length === 0) {
+                this.log('语音列表为空，等待加载...');
+                return;
+            }
+            
+            this.voicesLoaded = true;
+            this.log('语音列表加载成功，数量:', voices.length);
+            
+            // 优先找中文语音
+            for (var i = 0; i < voices.length; i++) {
+                var v = voices[i];
+                var lang = v.lang || '';
+                if (lang.indexOf('zh') !== -1 || lang.indexOf('CN') !== -1 || 
+                    lang.indexOf('cmn') !== -1 || lang.indexOf('CHN') !== -1) {
+                    this.defaultVoice = v;
+                    this.log('找到中文语音:', v.name, v.lang);
+                    break;
                 }
             }
+            
+            if (!this.defaultVoice) {
+                this.defaultVoice = voices[0];
+                this.log('未找到中文语音，使用默认:', voices[0].name);
+            }
+            
         } catch (e) {
-            console.warn('加载语音失败:', e);
+            this.log('加载语音失败:', e.message);
         }
     },
 
-    setVoice: function(lang) {
-        this.loadVoices();
-    },
-
-    toggle: function() {
-        this.enabled = !this.enabled;
-        Storage.set('xxgc_speech', this.enabled);
-        this.updateIcon();
-        if (this.enabled) {
-            this.speak('语音播报已开启');
-        } else if (this.synth) {
-            this.synth.cancel();
-        }
-    },
-
-    updateIcon: function() {
-        var icon = document.getElementById('speech-icon');
-        if (icon) {
-            icon.textContent = this.enabled ? '🔊' : '🔇';
-        }
-        var btn = document.getElementById('speech-toggle');
-        if (btn) {
-            if (this.enabled) {
-                btn.classList.remove('disabled');
-            } else {
-                btn.classList.add('disabled');
-            }
+    // 预热语音引擎（移动端关键）
+    warmUp: function() {
+        if (!this.synth) return;
+        
+        try {
+            // 创建一个空的语音来激活引擎
+            var utterance = new SpeechSynthesisUtterance('');
+            utterance.volume = 0;
+            this.synth.speak(utterance);
+            
+            // 立即取消，只是激活
+            setTimeout(function() {
+                try { Speech.synth.cancel(); } catch(e) {}
+            }, 50);
+            
+            this.log('语音引擎已预热');
+        } catch (e) {
+            this.log('预热失败:', e.message);
         }
     },
 
     speak: function(text, rate) {
         rate = rate || 0.9;
-        if (!this.enabled || !this.synth) return;
-        if (!text || typeof text !== 'string') return;
         
-        // 如果正在播报，先停止
-        if (this.speaking) {
-            this.synth.cancel();
-            this.speaking = false;
+        // 基础检查
+        if (!this.enabled) {
+            this.log('语音播报已关闭');
+            return;
+        }
+        if (!this.synth) {
+            this.log('synth未初始化');
+            return;
+        }
+        if (!text || typeof text !== 'string' || text.length === 0) {
+            this.log('文本为空');
+            return;
         }
         
+        this.log('开始播报:', text.substring(0, 20) + '...');
+        
         try {
-            // iOS Safari 关键：取消之前的播报队列
+            // 强制取消所有之前的播报
             this.synth.cancel();
             
-            // 创建新的语音实例
+            // 创建语音实例
             var utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'zh-CN';
             utterance.rate = rate;
             utterance.pitch = 1;
             utterance.volume = 1;
             
-            // 设置语音
+            // 设置语音（如果有）
             if (this.defaultVoice) {
                 utterance.voice = this.defaultVoice;
+                this.log('使用语音:', this.defaultVoice.name);
+            } else {
+                this.log('使用系统默认语音');
             }
             
             var self = this;
             
-            utterance.onstart = function() {
+            utterance.onstart = function(event) {
                 self.speaking = true;
-                console.log('语音开始播报');
+                self.log('语音开始播放');
+                self.updateIcon();
             };
             
-            utterance.onend = function() {
+            utterance.onend = function(event) {
                 self.speaking = false;
-                console.log('语音播报结束');
+                self.log('语音播放结束');
+                self.updateIcon();
             };
             
-            utterance.onerror = function(e) {
+            utterance.onerror = function(event) {
                 self.speaking = false;
-                console.warn('语音播报错误:', e);
+                self.log('语音错误:', event.error || event);
+                self.updateIcon();
             };
             
-            // iOS Safari 关键修复：延迟一帧后播报
-            // 这确保了utterance在主线程上下文中被正确处理
-            setTimeout(function() {
-                self.synth.speak(utterance);
-            }, 10);
+            utterance.onpause = function(event) {
+                self.log('语音暂停');
+            };
+            
+            utterance.onresume = function(event) {
+                self.log('语音恢复');
+            };
+            
+            // iOS Safari关键修复：必须在用户交互事件处理函数中直接调用
+            // 使用try-catch确保即使失败也不会影响其他功能
+            try {
+                this.synth.speak(utterance);
+                this.log('synth.speak()已调用');
+            } catch (e) {
+                this.log('synth.speak()调用失败:', e.message);
+            }
             
         } catch (e) {
-            console.warn('语音播报失败:', e);
             this.speaking = false;
+            this.log('speak函数异常:', e.message);
         }
     },
 
@@ -184,7 +225,6 @@ var Speech = {
     speakKnowledge: function(knowledge) {
         if (!this.enabled) return;
         var content = knowledge.content || '';
-        // 提取纯文本
         content = content.replace(/<[^>]+>/g, '');
         var text = (knowledge.title || '') + '。' + content;
         this.speak(text, 0.85);
@@ -195,13 +235,56 @@ var Speech = {
         this.speak('这个字是' + char + '，读作' + pinyin, 0.95);
     },
 
+    toggle: function() {
+        this.enabled = !this.enabled;
+        Storage.set('xxgc_speech', this.enabled);
+        this.updateIcon();
+        if (this.enabled) {
+            this.warmUp();
+            this.speak('语音播报已开启');
+        } else if (this.synth) {
+            this.synth.cancel();
+        }
+    },
+
+    updateIcon: function() {
+        var icon = document.getElementById('speech-icon');
+        if (icon) {
+            icon.textContent = this.enabled ? '🔊' : '🔇';
+        }
+        var btn = document.getElementById('speech-toggle');
+        if (btn) {
+            if (this.enabled) {
+                btn.classList.remove('disabled');
+            } else {
+                btn.classList.add('disabled');
+            }
+        }
+    },
+
     stop: function() {
         if (this.synth) {
             this.synth.cancel();
             this.speaking = false;
         }
+    },
+
+    log: function(msg) {
+        if (this.debugMode) {
+            console.log('[Speech]', msg);
+        }
+    },
+
+    getStatus: function() {
+        return {
+            enabled: this.enabled,
+            synth: !!this.synth,
+            speaking: this.speaking,
+            voicesLoaded: this.voicesLoaded,
+            voiceName: this.defaultVoice ? this.defaultVoice.name : 'none',
+            voiceLang: this.defaultVoice ? this.defaultVoice.lang : 'none'
+        };
     }
 };
 
-// 暴露到全局
 window.Speech = Speech;

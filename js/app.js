@@ -59,6 +59,10 @@ var App = {
         if (modal) modal.style.display = 'none';
         
         this.renderTab('learn');
+        
+        // 移动端关键：在用户点击事件中预热并立即播报
+        // 这样能确保后续的语音播报也能正常工作
+        Speech.warmUp();
         Speech.speak('欢迎你，' + name + '！');
     },
 
@@ -293,10 +297,13 @@ var App = {
         html += '</div><div id="question-area"></div></div></div>';
         main.innerHTML = html;
 
-        var self = this;
-        document.getElementById('speak-knowledge-btn').addEventListener('click', function() {
-            Speech.speakKnowledge({ title: kn.title, content: kn.content });
-        });
+        var speakBtn = document.getElementById('speak-knowledge-btn');
+        if (speakBtn) {
+            speakBtn.onclick = function() {
+                Speech.warmUp();
+                Speech.speakKnowledge({ title: kn.title, content: kn.content });
+            };
+        }
 
         this.renderQuestion();
     },
@@ -330,7 +337,10 @@ var App = {
         var lesson = this.learnNav.lesson;
         if (lesson && lesson.questions) {
             var question = lesson.questions[this.currentQuestionIndex];
-            if (question) Speech.speakQuestion(question);
+            if (question) {
+                Speech.warmUp();
+                Speech.speakQuestion(question);
+            }
         }
     },
 

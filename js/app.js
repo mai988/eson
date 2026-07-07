@@ -323,8 +323,7 @@ var App = {
         area.innerHTML = html;
         this.answered = false;
 
-        var self = this;
-        setTimeout(function() { Speech.speakQuestion(question); }, 500);
+        // 移动端自动播放策略限制，不自动播报，由用户点击播报按钮
     },
 
     speakCurrentQuestion: function() {

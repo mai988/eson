@@ -855,7 +855,7 @@ var App = {
         }
         area.innerHTML = html;
         this.answered = false;
-        setTimeout(function() { Speech.speakQuestion(question); }, 500);
+        // 移动端自动播放策略限制，不自动播报
     },
 
     answerPracticeChoice: function(index) {

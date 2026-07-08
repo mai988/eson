@@ -108,17 +108,25 @@ var Speech = {
         if (!this.synth) return;
         
         try {
-            // 创建一个空的语音来激活引擎
-            var utterance = new SpeechSynthesisUtterance('');
+            var utterance = new SpeechSynthesisUtterance('语音已准备好');
             utterance.volume = 0;
+            utterance.rate = 1;
+            utterance.lang = 'zh-CN';
+            
+            var self = this;
+            utterance.onend = function() {
+                self.log('语音引擎已预热');
+            };
+            utterance.onerror = function() {
+                self.log('预热失败');
+            };
+            
             this.synth.speak(utterance);
             
-            // 立即取消，只是激活
             setTimeout(function() {
                 try { Speech.synth.cancel(); } catch(e) {}
-            }, 50);
+            }, 100);
             
-            this.log('语音引擎已预热');
         } catch (e) {
             this.log('预热失败:', e.message);
         }

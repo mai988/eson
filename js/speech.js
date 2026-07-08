@@ -235,6 +235,28 @@ var Speech = {
         this.speak('这个字是' + char + '，读作' + pinyin, 0.95);
     },
 
+    speakFeedback: function(correct) {
+        if (!this.enabled) return;
+        var messages = correct
+            ? ['太棒了！', '真厉害！', '答对了！', '你真聪明！', '好样的！']
+            : ['别灰心，再想想！', '加油，你可以的！', '错了没关系，继续加油！'];
+        var msg = messages[Math.floor(Math.random() * messages.length)];
+        this.speak(msg, 0.95);
+    },
+
+    speakAchievement: function(title) {
+        if (!this.enabled) return;
+        this.speak('恭喜你获得成就：' + title + '！', 1);
+    },
+
+    speakHint: function() {
+        if (!this.enabled) return;
+        var hintText = document.getElementById('hint-text');
+        if (hintText && hintText.textContent) {
+            this.speak(hintText.textContent, 0.85);
+        }
+    },
+
     toggle: function() {
         this.enabled = !this.enabled;
         Storage.set('xxgc_speech', this.enabled);

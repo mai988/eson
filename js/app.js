@@ -370,6 +370,9 @@ var App = {
         Storage.updateDailyProgress();
 
         Speech.speakFeedback(correct);
+        if (!correct) {
+            Speech.speak('❌ 答错了。' + question.hint, 0.85);
+        }
         var self = this;
         setTimeout(function() { self.showFeedback(correct, question.hint); }, 600);
     },
@@ -408,6 +411,7 @@ var App = {
             var achievements = Storage.checkAchievements();
             var self = this;
             if (achievements.length > 0) {
+                Speech.speakAchievement(achievements[0].title);
                 setTimeout(function() { self.showAchievement(achievements[0]); }, 1500);
             }
         }
@@ -417,7 +421,6 @@ var App = {
         var modal = document.getElementById('hint-modal');
         document.getElementById('hint-text').textContent = hint;
         modal.style.display = 'flex';
-        Speech.speak(hint, 0.85);
     },
 
     closeHint: function() {
@@ -725,7 +728,16 @@ var App = {
         this.answered = false;
 
         if (q.content) {
-            setTimeout(function() { Speech.speak(q.content); }, 500);
+            var self = this;
+            setTimeout(function() {
+                try {
+                    Speech.synth && Speech.synth.cancel();
+                    var utterance = new SpeechSynthesisUtterance(q.content);
+                    utterance.lang = 'zh-CN';
+                    utterance.rate = 0.9;
+                    Speech.synth && Speech.synth.speak(utterance);
+                } catch(e) {}
+            }, 300);
         }
     },
 
@@ -779,6 +791,7 @@ var App = {
         } else {
             Storage.recordAnswer(q.subjectId, q.questionId, false);
             Speech.speakFeedback(false);
+            Speech.speak('❌ 又错了。' + q.hint, 0.85);
             this.advanceAfterHint = true;
             this.showHint('❌ 又错了。' + q.hint);
         }

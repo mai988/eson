@@ -421,6 +421,7 @@ var App = {
         var modal = document.getElementById('hint-modal');
         document.getElementById('hint-text').textContent = hint;
         modal.style.display = 'flex';
+        Speech.speak(hint, 0.85);
     },
 
     closeHint: function() {
